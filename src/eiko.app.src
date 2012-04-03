@@ -1,0 +1,15 @@
+{application, eiko, [
+        {description, "IRC Bot"},
+        {vsn, "0.1"},
+        {modules, [
+                irc_config,
+                irc_network,
+                irc_lib
+            ]},
+        {registered, []},
+        {applications, [kernel, stdlib]},
+        {mod, {eiko_app, [
+                    {config, 'config/settings.cfg'}
+                ]}},
+        {start_phases, []}
+    ]}.
