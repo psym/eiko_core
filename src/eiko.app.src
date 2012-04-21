@@ -2,6 +2,8 @@
         {description, "IRC Bot"},
         {vsn, "0.1"},
         {modules, [
+                irc_sup,
+                irc_network_sup,
                 irc_config,
                 irc_network,
                 irc_lib
