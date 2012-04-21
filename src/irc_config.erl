@@ -20,6 +20,7 @@
         user/1,
         servers/1,
         channels/1,
+        plugins/1,
         reload/0
     ]).
 
@@ -45,6 +46,8 @@ user(Network) ->
 
 servers(Network) -> get([networks, Network, servers]).
 channels(Network) -> get([networks, Network, channels]).
+
+plugins(Network) -> get([networks, Network, plugins]).
 
 reload() -> gen_server:call(?MODULE, reload).
 

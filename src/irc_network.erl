@@ -30,9 +30,9 @@
         network,
         socket,
         trace,
-
-        nick
+        irc     :: #irc_state{}
     }).
+
 
 start_link(Network) -> gen_fsm:start_link(?MODULE, Network, []).
 
@@ -44,7 +44,10 @@ init(Network) ->
     State = #state{
         network = Network, 
         trace   = Trace,
-        nick    = irc_config:nick(Network)
+        irc     = #irc_state{
+                        nick = irc_config:nick(Network),
+                        ref  = self()
+                    }
     },
     Settings = irc_config:network(Network),
     case kvc:path(autoconnect,Settings) of
@@ -102,9 +105,9 @@ handle_line(Msg = #irc_message{command = <<"PING">>}, State) ->
 handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
     join_channels(State);
 handle_line(#irc_message{command = <<"433">>}, State) -> % ERR_NICKNAMEINUSE
-    NewNick = <<(State#state.nick)/binary, "`">>,
+    NewNick = <<((State#state.irc)#irc_state.nick)/binary, "`">>,
     irc_lib:nick(self(), NewNick),
-    State#state{nick = NewNick};
+    State#state.irc#irc_state{nick = NewNick};
 handle_line(Msg, #state{network = Network} = State) ->
     lager:debug([{network, Network}], "unhandled: ~p", [Msg]),
     State.

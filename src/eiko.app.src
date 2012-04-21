@@ -6,7 +6,8 @@
                 irc_network_sup,
                 irc_config,
                 irc_network,
-                irc_lib
+                irc_lib,
+                irc_plugin
             ]},
         {registered, []},
         {applications, [kernel, stdlib]},
