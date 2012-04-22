@@ -29,7 +29,6 @@
 -record(state, {
         network,
         socket,
-        trace,
         irc     :: #irc_state{}
     }).
 
@@ -39,11 +38,9 @@ start_link(Network) -> gen_fsm:start_link(?MODULE, Network, []).
 %%% gen_fsm API callbacks
 init(Network) ->
     lager:info("Initializing network '~s'", [Network]),
-    TraceFile = io_lib:format("log/~s/server.log", [Network]),
-    {ok, Trace} = lager:trace_file(TraceFile, [{network, Network}]),
+    irc_log:add_network(Network),
     State = #state{
         network = Network, 
-        trace   = Trace,
         irc     = #irc_state{
                         nick = irc_config:nick(Network),
                         ref  = self()
@@ -72,18 +69,29 @@ disconnect(_, State) ->
 
 online({in, Line}, State) ->
     Msg = irc_lib:parse(Line),
-    lager:debug([{network, State#state.network}], "in: ~ts", [Line]),
+    log_msg(State#state.network, in, Msg),
     %XXX: forward to plugins
     {next_state, online, handle_line(Msg, State)}.
 
+log_msg(Network, Direction, #irc_message{command = Cmd, params = Params} = Msg) ->
+    if
+        Cmd == <<"PRIVMSG">> -> 
+            irc_log:info({Network, hd(Params)}, "~p: ~p", [Direction, Msg]);
+        true -> 
+            irc_log:info({Network, server}, "~p: ~p", [Direction, Msg])
+    end;
+log_msg(Network, Direction, Line) ->
+    log_msg(Network, Direction, irc_lib:parse(Line)).
+                    
+
 offline(_, #state{network = Network} = State) ->
-    lager:info([{network, Network}], "Network '~s' offline", [Network]),
+    irc_log:info({Network, server}, "Network '~s' offline", [Network]),
     {next_state, offline, State}.
 
 handle_event({out, [H|T]}, StateName, #state{socket=Socket, network=Network} = State) ->
     %XXX: this can be improved
     L = [H | [list_to_binary([$\s | X]) || X <- T]],
-    lager:debug([{network, Network}], "out: ~ts", [L]),
+    log_msg(Network, out, L),
     ok = gen_tcp:send(Socket, [L, ?CRLF]),
     {next_state, StateName, State}.
 
@@ -91,7 +99,6 @@ code_change(_OldVsn, StateName, State, _Extra) -> {ok, StateName, State}.
 
 terminate(Reason, _StateName, State) ->
     gen_tcp:close(State#state.socket),
-    lager:stop_trace(State#state.trace),
     %XXX: push config changes back
     {shutdown, Reason}.
 
@@ -109,7 +116,7 @@ handle_line(#irc_message{command = <<"433">>}, State) -> % ERR_NICKNAMEINUSE
     irc_lib:nick(self(), NewNick),
     State#state.irc#irc_state{nick = NewNick};
 handle_line(Msg, #state{network = Network} = State) ->
-    lager:debug([{network, Network}], "unhandled: ~p", [Msg]),
+    irc_log:debug({Network, server}, "unhandled: ~p", [Msg]),
     State.
 
 login(Network) -> 
@@ -125,8 +132,9 @@ join_channels(#state{network = Network} = State) ->
                 Props = {kvc:value(name, C, undefined), kvc:value(autojoin, C, false)},
                 case Props of
                     {undefined, _} ->
-                        lager:error([{network, Network}], "Channel missing name: ~p", [C]);
+                        irc_log:error({Network, server}, "Channel missing name: ~p", [C]);
                     {Name, true} ->
+                        irc_log:add_channel(Network, Name),
                         irc_lib:join(self(), Name);
                     {_, _} -> ok
                 end

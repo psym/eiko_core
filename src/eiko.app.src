@@ -5,6 +5,7 @@
                 irc_sup,
                 irc_network_sup,
                 irc_config,
+                irc_log,
                 irc_network,
                 irc_lib,
                 irc_plugin
@@ -16,3 +17,5 @@
                 ]}},
         {start_phases, []}
     ]}.
+
+% vim:ft=erlang
