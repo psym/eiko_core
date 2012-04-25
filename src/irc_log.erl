@@ -153,9 +153,5 @@ remove_pid(Pid, State) ->
         _ -> State
     end.
 
-bin(X) when is_binary(X) ->
-    X;
-bin(X) when is_atom(X) ->
-    atom_to_binary(X, utf8);
-bin(X) when is_list(X) ->
-    list_to_binary(X).
+bin(X) -> irc_util:to_binary(X).
+

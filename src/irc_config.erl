@@ -37,11 +37,12 @@ start_link(Filename) ->
 networks() -> get(networks).
 network(Network) -> get([networks, Network]).
 
-nick(Network) -> get([networks, Network, nick]).
+nick(Network) -> 
+    irc_util:to_binary( get([networks, Network, nick]) ).
 user(Network) ->
     case get([networks, Network, user]) of
         [] -> nick(Network);
-        User -> User
+        User -> irc_util:to_binary(User)
     end.
 
 servers(Network) -> get([networks, Network, servers]).
