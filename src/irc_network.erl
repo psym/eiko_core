@@ -111,10 +111,12 @@ handle_line(Msg = #irc_message{command = <<"PING">>}, State) ->
     State;
 handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
     join_channels(State);
-handle_line(#irc_message{command = <<"433">>}, State) -> % ERR_NICKNAMEINUSE
-    NewNick = <<((State#state.irc)#irc_state.nick)/binary, "`">>,
+handle_line(Msg, #state{irc = Irc} = State) when
+        Msg#irc_message.command == <<"433">>;       % ERR_NICKNAMEINUSE
+        Msg#irc_message.command == <<"436">> ->     % ERR_NICKCOLLISION
+    NewNick = <<(Irc#irc_state.nick)/binary, "`">>,
     irc_lib:nick(self(), NewNick),
-    State#state.irc#irc_state{nick = NewNick};
+    State#state{irc = Irc#irc_state{nick = NewNick}};
 handle_line(Msg, #state{network = Network} = State) ->
     irc_log:debug({Network, server}, "unhandled: ~p", [Msg]),
     State.
