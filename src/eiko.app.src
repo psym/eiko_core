@@ -1,4 +1,4 @@
-{application, eiko, [
+{application, eiko_core, [
         {description, "IRC Bot"},
         {vsn, "0.1"},
         {modules, [
