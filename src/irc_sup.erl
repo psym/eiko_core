@@ -22,7 +22,7 @@ init(_) ->
     Children = [
         {irc_log, {irc_log, start_link, []},
             Restart, Shutdown, worker, [irc_log]},
-        {irc_config, {irc_config, start_link, ["priv/settings.cfg"]}, 
+        {irc_config, {irc_config, start_link, []}, 
             Restart, Shutdown, worker, [irc_config]},
         {irc_network_sup, {irc_network_sup, start_link, [ok]},
             Restart, Shutdown, supervisor, [irc_network_sup]}
