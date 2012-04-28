@@ -3,14 +3,14 @@
         {vsn, "0.1"},
         {modules, [
                 eiko_core,
-                irc_sup,
-                irc_network_sup,
+                eiko_sup,
+                eiko_network_sup,
                 eiko_cfg,
-                irc_log,
-                irc_network,
-                irc_lib,
-                irc_util,
-                irc_plugin
+                eiko_log,
+                eiko_network,
+                eiko_lib,
+                eiko_util,
+                eiko_plugin
             ]},
         {registered, []},
         {applications, [kernel, stdlib]},

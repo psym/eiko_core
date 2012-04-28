@@ -1,4 +1,4 @@
--module(irc_lib).
+-module(eiko_lib).
 
 -include("irc.hrl").
 

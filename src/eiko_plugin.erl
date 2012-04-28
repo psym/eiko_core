@@ -1,4 +1,4 @@
--module(irc_plugin).
+-module(eiko_plugin).
 
 -compile([{parse_transform, lager_transform}]).
 
@@ -25,7 +25,7 @@ start_link(Network) ->
     lager:info("Starting event manager for '~s': ~p", [Network, EventMgr]),
     lists:foreach(
         fun(Plugin) -> add_handler(EventMgr, Plugin, [EventMgr]) end,
-        irc_config:plugins(Network)
+        eiko_cfg:plugins(Network)
     ),
     {ok, EventMgr}.
 
@@ -94,19 +94,19 @@ try_command(_, _) -> nop.
 runner(#command{function={Mod, Fun}}, Msg, Args) ->
     lager:info("launching ~p:~p(~p)...", [Mod, Fun, [Msg|Args]]),
     try apply(Mod, Fun, [Msg|Args]) of
-        {reply, Out} -> irc_lib:reply(Msg, Out);
-        {error, Reason} -> irc_lib:reply(Msg, Reason);
+        {reply, Out} -> eiko_lib:reply(Msg, Out);
+        {error, Reason} -> eiko_lib:reply(Msg, Reason);
         _ -> ok
     catch
         throw:{X, R} ->
-            irc_lib:reply(Msg, [atom_to_list(X), ": ", [io_lib:format("~p", [R])]]),
+            eiko_lib:reply(Msg, [atom_to_list(X), ": ", [io_lib:format("~p", [R])]]),
             lager:info("error: ~p", [erlang:get_stacktrace()]);
         _:_ ->
             lager:info("error: ~p", [erlang:get_stacktrace()])
     end.
 
 usage(Msg, #command{match = C, usage = U}) ->
-    irc_lib:reply(Msg, ["usage: ", io_lib:format("~p", [C]), " ", U]).
+    eiko_lib:reply(Msg, ["usage: ", io_lib:format("~p", [C]), " ", U]).
 
 tokens(Bin, Sep) when is_list(Sep) ->
     tokens(Bin, unicode:characters_to_binary(Sep));

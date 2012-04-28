@@ -147,7 +147,7 @@ write_file(Config) ->
 
 
 do_set(K, V, C) ->
-    P = [normalize(X, atom) || X <- path(K)],
+    P = [eiko_util:normalize(X, atom) || X <- path(K)],
     do_set1(P, V, C).
 do_set1([H|[]], V, C) ->
     lists:keystore(H, 1, C, {H, V});
@@ -161,26 +161,6 @@ do_set1([H|T], V, C) ->
             end}).
 
 path(K) ->
-    binary:split(normalize(K, binary), <<".">>, [global]).
+    binary:split(eiko_util:normalize(K, binary), <<".">>, [global]).
 
-
-normalize(K, atom) when is_atom(K) ->
-    K;
-normalize(K, atom) when is_list(K) ->
-    try list_to_existing_atom(K)
-    catch error:badarg ->
-        K
-    end;
-normalize(K, atom) when is_binary(K) ->
-    try binary_to_existing_atom(K, utf8)
-    catch error:badarg ->
-        K
-    end;
-
-normalize(K, binary) when is_binary(K) ->
-    K;
-normalize(K, binary) when is_atom(K) ->
-    atom_to_binary(K, utf8);
-normalize(K, binary) when is_list(K) ->
-    iolist_to_binary(K).
 

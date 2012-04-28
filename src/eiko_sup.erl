@@ -1,4 +1,4 @@
--module(irc_sup).
+-module(eiko_sup).
 
 -behaviour(supervisor).
 
@@ -20,12 +20,12 @@ init(_) ->
     Shutdown = 2000,
 
     Children = [
-        {irc_log, {irc_log, start_link, []},
-            Restart, Shutdown, worker, [irc_log]},
+        {eiko_log, {eiko_log, start_link, []},
+            Restart, Shutdown, worker, [eiko_log]},
         {eiko_cfg, {eiko_cfg, start_link, []}, 
             Restart, Shutdown, worker, [eiko_cfg]},
-        {irc_network_sup, {irc_network_sup, start_link, [ok]},
-            Restart, Shutdown, supervisor, [irc_network_sup]}
+        {eiko_network_sup, {eiko_network_sup, start_link, [ok]},
+            Restart, Shutdown, supervisor, [eiko_network_sup]}
     ],
     {ok, {SupFlags, Children}}.
 

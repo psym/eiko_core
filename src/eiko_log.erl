@@ -1,4 +1,4 @@
--module(irc_log).
+-module(eiko_log).
 -behaviour(gen_server).
 
 -compile([{parse_transform, lager_transform}]).
@@ -6,41 +6,60 @@
 -export([start_link/0]).
 
 %%% API
--export([
-        list/0,
-        add_network/1,
-        add_channel/2,
-        remove_network/1,
-        remove_channel/2,
+-export(
+        %% Registration functions
+        [ list/0
+        , add_network/1
+        , add_channel/2
+        , remove_network/1
+        , remove_channel/2
 
-        add_trace/2,
-        remove_trace/1,
+        , add_trace/2
+        , remove_trace/1
 
-        debug/3,
-        info/3,
-        notice/3,
-        warning/3,
-        error/3,
-        critical/3,
-        alert/3,
-        emergency/3
+        %% Basic logging functions
+        , debug/3
+        , info/3
+        , notice/3
+        , warning/3
+        , error/3
+        , critical/3
+        , alert/3
+        , emergency/3
+
+        %% Complex, specific logging functions
+        , log_msg/3
     ]).
 
 %%% Callbacks
--export([
-        init/1,
-        handle_call/3,
-        handle_cast/2,
-        handle_info/2,
-        terminate/2,
-        code_change/3
+-export([ init/1
+        , handle_call/3
+        , handle_cast/2
+        , handle_info/2
+        , terminate/2
+        , code_change/3
     ]).
+
+-include("irc.hrl").
+
 
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %%%--------------------------------------------------
 %%% API
 %%%--------------------------------------------------
+
+log_msg(Network, Direction, #irc_message{command = Cmd, params = Params} = Msg) ->
+    if
+        Cmd == <<"PRIVMSG">> ->
+            eiko_log:info({Network, hd(Params)}, "~p: ~p", [Direction, Msg]);
+        true ->
+            eiko_log:info({Network, server}, "~p: ~p", [Direction, Msg])
+    end;
+log_msg(Network, Direction, Line) ->
+    log_msg(Network, Direction, eiko_lib:parse(Line)).
+
+
 debug({Network, Channel}, Msg, Args) ->
     lager:debug([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
@@ -127,12 +146,10 @@ handle_cast(list, State) ->
     {noreply, State};
 handle_cast(_Request, State) -> {noreply, State}.
 
-handle_info({'DOWN', MonitorRef, Type, Object, Info}, State) -> 
+handle_info({'DOWN', _MonitorRef, _Type, Object, _Info}, State) -> 
     {noreply, remove_pid(Object, State)};
-handle_info({'EXIT', Pid, Info}, State) ->
-    io:format("Exit: ~p ~p~n", [Pid, Info]),
-    NewState = remove_pid(Pid, State),
-    {noreply, NewState}.
+handle_info({'EXIT', Pid, _Info}, State) ->
+    {noreply, remove_pid(Pid, State)}.
 
 terminate(_Reason, State) ->
     [ [lager:stop_trace(Trace) || {Trace, _} <- dict:fetch(Pid, State)]
@@ -153,5 +170,5 @@ remove_pid(Pid, State) ->
         _ -> State
     end.
 
-bin(X) -> irc_util:to_binary(X).
+bin(X) -> eiko_util:normalize(X, binary).
 

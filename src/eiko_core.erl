@@ -9,11 +9,12 @@
     ]).
 
 start() ->
+    application:start(lager),
     application:start(eiko_core).
 
 start(_StartType, _StartArgs) ->
     lager:start(),
-    irc_sup:start_link([]).
+    eiko_sup:start_link([]).
 
 stop(_State) ->
     unimplemented.

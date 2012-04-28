@@ -1,4 +1,4 @@
--module(irc_network).
+-module(eiko_network).
 -behaviour(gen_fsm).
 
 -compile([{parse_transform, lager_transform}]).
@@ -38,7 +38,7 @@ start_link(Network) -> gen_fsm:start_link(?MODULE, Network, []).
 %%% gen_fsm API callbacks
 init(Network) ->
     lager:info("Initializing network '~s'", [Network]),
-    irc_log:add_network(Network),
+    eiko_log:add_network(Network),
     State = #state{
         network = Network, 
         irc     = #irc_state{
@@ -67,30 +67,20 @@ disconnect(_, State) ->
     {stop, unimplemented, State}.
 
 online({in, Line}, State) ->
-    Msg = irc_lib:parse(Line),
-    log_msg(State#state.network, in, Msg),
+    Msg = eiko_lib:parse(Line),
+    eiko_log:log_msg(State#state.network, in, Msg),
     %XXX: forward to plugins
     {next_state, online, handle_line(Msg, State)}.
 
-log_msg(Network, Direction, #irc_message{command = Cmd, params = Params} = Msg) ->
-    if
-        Cmd == <<"PRIVMSG">> -> 
-            irc_log:info({Network, hd(Params)}, "~p: ~p", [Direction, Msg]);
-        true -> 
-            irc_log:info({Network, server}, "~p: ~p", [Direction, Msg])
-    end;
-log_msg(Network, Direction, Line) ->
-    log_msg(Network, Direction, irc_lib:parse(Line)).
-                    
 
 offline(_, #state{network = Network} = State) ->
-    irc_log:info({Network, server}, "Network '~s' offline", [Network]),
+    eiko_log:info({Network, server}, "Network '~s' offline", [Network]),
     {next_state, offline, State}.
 
 handle_event({out, [H|T]}, StateName, #state{socket=Socket, network=Network} = State) ->
     %XXX: this can be improved
     L = [H | [list_to_binary([$\s | X]) || X <- T]],
-    log_msg(Network, out, L),
+    eiko_log:log_msg(Network, out, L),
     ok = gen_tcp:send(Socket, [L, ?CRLF]),
     {next_state, StateName, State}.
 
@@ -106,7 +96,7 @@ terminate(Reason, _StateName, State) ->
 %%% Internal
 %%%--------------------------------------------------
 handle_line(Msg = #irc_message{command = <<"PING">>}, State) ->
-    irc_lib:send(self(), <<"PONG">>, Msg#irc_message.trailing),
+    eiko_lib:send(self(), <<"PONG">>, Msg#irc_message.trailing),
     State;
 handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
     join_channels(State);
@@ -114,17 +104,17 @@ handle_line(Msg, #state{irc = Irc} = State) when
         Msg#irc_message.command == <<"433">>;       % ERR_NICKNAMEINUSE
         Msg#irc_message.command == <<"436">> ->     % ERR_NICKCOLLISION
     NewNick = Irc#irc_state.nick ++ "`",
-    irc_lib:nick(self(), NewNick),
+    eiko_lib:nick(self(), NewNick),
     State#state{irc = Irc#irc_state{nick = NewNick}};
 handle_line(Msg, #state{network = Network} = State) ->
-    irc_log:debug({Network, server}, "unhandled: ~p", [Msg]),
+    eiko_log:debug({Network, server}, "unhandled: ~p", [Msg]),
     State.
 
 login(Network) -> 
     Nick = eiko_cfg:nick(Network),
     User = eiko_cfg:user(Network),
-    irc_lib:nick(self(), Nick),
-    irc_lib:user(self(), User, User).
+    eiko_lib:nick(self(), Nick),
+    eiko_lib:user(self(), User, User).
 
 join_channels(#state{network = Network} = State) ->
     Channels = eiko_cfg:channels(local),
@@ -133,10 +123,10 @@ join_channels(#state{network = Network} = State) ->
                 Props = {kvc:value(name, C, undefined), kvc:value(autojoin, C, false)},
                 case Props of
                     {undefined, _} ->
-                        irc_log:error({Network, server}, "Channel missing name: ~p", [C]);
+                        eiko_log:error({Network, server}, "Channel missing name: ~p", [C]);
                     {Name, true} ->
-                        irc_log:add_channel(Network, Name),
-                        irc_lib:join(self(), Name);
+                        eiko_log:add_channel(Network, Name),
+                        eiko_lib:join(self(), Name);
                     {_, _} -> ok
                 end
         end, Channels),

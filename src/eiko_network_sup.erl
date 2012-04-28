@@ -1,4 +1,4 @@
--module(irc_network_sup).
+-module(eiko_network_sup).
 
 -behaviour(supervisor).
 
@@ -21,8 +21,8 @@ init(_) ->
     Type = worker,
 
     Networks = [
-        {Network, {irc_network, start_link, [Network]}, 
-            Restart, Shutdown, Type, [irc_network]}
+        {Network, {eiko_network, start_link, [Network]}, 
+            Restart, Shutdown, Type, [eiko_network]}
         || {Network, _} <- eiko_cfg:networks() 
     ],
 
