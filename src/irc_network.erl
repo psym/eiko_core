@@ -42,18 +42,17 @@ init(Network) ->
     State = #state{
         network = Network, 
         irc     = #irc_state{
-                        nick = irc_config:nick(Network),
+                        nick = eiko_cfg:nick(Network),
                         ref  = self()
                     }
     },
-    Settings = irc_config:network(Network),
-    case kvc:path(autoconnect,Settings) of
+    case eiko_cfg:network(Network, autoconnect) of
         true -> {ok, connect, State, 0};
         _ -> {ok, idle, State, hibernate}
     end.
 
 connect(timeout, #state{network=Network} = State) ->
-    {Host, Port} = hd(irc_config:servers(Network)),
+    {Host, Port} = hd(eiko_cfg:servers(Network)),
     Options = [binary, {active, true}, {packet, line}, {keepalive, true}],
     case gen_tcp:connect(Host, Port, Options) of
         {ok, Socket} ->
@@ -114,7 +113,7 @@ handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
 handle_line(Msg, #state{irc = Irc} = State) when
         Msg#irc_message.command == <<"433">>;       % ERR_NICKNAMEINUSE
         Msg#irc_message.command == <<"436">> ->     % ERR_NICKCOLLISION
-    NewNick = <<(Irc#irc_state.nick)/binary, "`">>,
+    NewNick = Irc#irc_state.nick ++ "`",
     irc_lib:nick(self(), NewNick),
     State#state{irc = Irc#irc_state{nick = NewNick}};
 handle_line(Msg, #state{network = Network} = State) ->
@@ -122,13 +121,13 @@ handle_line(Msg, #state{network = Network} = State) ->
     State.
 
 login(Network) -> 
-    Nick = irc_config:nick(Network),
-    User = irc_config:user(Network),
+    Nick = eiko_cfg:nick(Network),
+    User = eiko_cfg:user(Network),
     irc_lib:nick(self(), Nick),
     irc_lib:user(self(), User, User).
 
 join_channels(#state{network = Network} = State) ->
-    Channels = irc_config:channels(local),
+    Channels = eiko_cfg:channels(local),
     lists:foreach(
         fun(C) ->
                 Props = {kvc:value(name, C, undefined), kvc:value(autojoin, C, false)},

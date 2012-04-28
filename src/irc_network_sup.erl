@@ -23,7 +23,7 @@ init(_) ->
     Networks = [
         {Network, {irc_network, start_link, [Network]}, 
             Restart, Shutdown, Type, [irc_network]}
-        || {Network, _} <- irc_config:networks() 
+        || {Network, _} <- eiko_cfg:networks() 
     ],
 
     {ok, {SupFlags, Networks}}.
