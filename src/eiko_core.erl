@@ -1,4 +1,4 @@
--module(eiko_app).
+-module(eiko_core).
 
 -behaviour(application).
 
@@ -9,7 +9,7 @@
     ]).
 
 start() ->
-    application:start(eiko).
+    application:start(eiko_core).
 
 start(_StartType, _StartArgs) ->
     lager:start(),

@@ -2,6 +2,7 @@
         {description, "IRC Bot"},
         {vsn, "0.1"},
         {modules, [
+                eiko_core,
                 irc_sup,
                 irc_network_sup,
                 eiko_cfg,
@@ -13,9 +14,10 @@
             ]},
         {registered, []},
         {applications, [kernel, stdlib]},
-        {mod, {eiko_app, [
-                    {config, 'config/settings.cfg'}
-                ]}},
+        {mod, {eiko_core, []}},
+        {env, [
+                {config, "etc/eiko.config"}
+            ]},
         {start_phases, []}
     ]}.
 
