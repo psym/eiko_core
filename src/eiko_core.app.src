@@ -10,7 +10,11 @@
                 eiko_network,
                 eiko_lib,
                 eiko_util,
-                eiko_plugin
+                eiko_plugin,
+                erlopt,
+
+                uptime,
+                plugin
             ]},
         {registered, []},
         {applications, [kernel, stdlib]},

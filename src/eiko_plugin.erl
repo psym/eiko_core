@@ -16,17 +16,16 @@
         notify/2
     ]).
 
+-compile(export_all).
 
 -include("irc.hrl").
 
 
-start_link(Network) ->
+start_link(Irc) when is_record(Irc, irc_state)->
+    Network = Irc#irc_state.network,
     {ok, EventMgr} = gen_event:start_link(),
     lager:info("Starting event manager for '~s': ~p", [Network, EventMgr]),
-    lists:foreach(
-        fun(Plugin) -> add_handler(EventMgr, Plugin, [EventMgr]) end,
-        eiko_cfg:plugins(Network)
-    ),
+    [add_handler(EventMgr, Plugin, [Irc]) || Plugin <- eiko_cfg:plugins(Network)],
     {ok, EventMgr}.
 
 add_handler(EventMgr, Handler, _Args) ->
@@ -52,8 +51,9 @@ notify(EventMgr, Event) ->
 
 command_match(_Msg, #command{match = all}) -> true;
 command_match(_Msg, #command{match = {cmd, <<>>}}) -> true;
-command_match(#irc_message{params = Params}, #command{match = {cmd, Match}, prefix = Prefix}) ->
-    [Cmd|_] = binary:split(lists:last(Params), <<" ">>),
+command_match(#irc_message{params = Params, trailing = Trailing}, 
+              #command{match = {cmd, Match}, prefix = Prefix}) ->
+    [Cmd|_] = binary:split(lists:last(Trailing), <<" ">>),
     PrefixLen = binary:longest_common_prefix([Prefix, Cmd]),
     CmdPart = {PrefixLen, byte_size(Cmd) - PrefixLen},
     (byte_size(Prefix) == PrefixLen) andalso (Match == binary_part(Cmd, CmdPart));
@@ -63,10 +63,10 @@ command_match(Msg, #command{match = {func, Match}}) ->
     Match(Msg).
 
 
-strip_command(#irc_message{params = Params}, #command{match = all}) -> Params;
-strip_command(#irc_message{params = Params}, #command{match = {cmd, Match}, prefix = Prefix}) ->
+strip_command(#irc_message{trailing = Trailing}, #command{match = all}) -> Trailing;
+strip_command(#irc_message{trailing = Trailing}, #command{match = {cmd, Match}, prefix = Prefix}) ->
     S = byte_size(Match) + byte_size(Prefix),
-    case lists:last(Params) of
+    case lists:last(Trailing) of
         <<_:S/binary, $ , A/binary>> -> A;
         <<_:S/binary, A/binary>> -> A
     end,
@@ -74,39 +74,39 @@ strip_command(#irc_message{params = Params}, #command{match = {cmd, Match}, pref
 
 
 %%% Generic event handler
-handle({Event, Msg}, Commands) ->
+handle({Irc, Msg}, Commands) ->
     lager:debug("got ~p~n", [Msg#irc_message.params]),
-    [try_command({Event, Msg}, C) || C <- Commands].
+    [try_command({Irc, Msg}, C) || C <- Commands].
 
-try_command({Event, Msg}, Command) when Event == Command#command.event ->
+try_command({Irc, Msg}, Command) when Msg#irc_message.command == Command#command.event ->
     case command_match(Msg, Command) of
         true ->
             try parse_args(Msg, Command) of
-                Args -> spawn(fun() -> (?MODULE):runner(Command, Msg, Args) end)
+                Args -> spawn(fun() -> (?MODULE):runner(Command, {Irc, Msg}, Args) end)
             catch _:_ ->
-                usage(Msg, Command)
+                usage({Irc, Msg}, Command)
             end;
         false -> nop
     end;
 try_command(_, _) -> nop.
 
 
-runner(#command{function={Mod, Fun}}, Msg, Args) ->
+runner(#command{function={Mod, Fun}}, {Irc, Msg}, Args) ->
     lager:info("launching ~p:~p(~p)...", [Mod, Fun, [Msg|Args]]),
-    try apply(Mod, Fun, [Msg|Args]) of
-        {reply, Out} -> eiko_lib:reply(Msg, Out);
-        {error, Reason} -> eiko_lib:reply(Msg, Reason);
+    try apply(Mod, Fun, [{Irc, Msg}|Args]) of
+        {reply, Out} -> eiko_lib:reply(Irc, Msg, Out);
+        {error, Reason} -> eiko_lib:reply(Irc, Msg, Reason);
         _ -> ok
     catch
         throw:{X, R} ->
-            eiko_lib:reply(Msg, [atom_to_list(X), ": ", [io_lib:format("~p", [R])]]),
+            eiko_lib:reply(Irc, Msg, [atom_to_list(X), ": ", [io_lib:format("~p", [R])]]),
             lager:info("error: ~p", [erlang:get_stacktrace()]);
         _:_ ->
             lager:info("error: ~p", [erlang:get_stacktrace()])
     end.
 
-usage(Msg, #command{match = C, usage = U}) ->
-    eiko_lib:reply(Msg, ["usage: ", io_lib:format("~p", [C]), " ", U]).
+usage({Irc, Msg}, #command{match = C, usage = U}) ->
+    eiko_lib:reply(Irc, Msg, ["usage: ", io_lib:format("~p", [C]), " ", U]).
 
 tokens(Bin, Sep) when is_list(Sep) ->
     tokens(Bin, unicode:characters_to_binary(Sep));

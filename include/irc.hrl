@@ -1,12 +1,19 @@
 
+-record(irc_user, {
+        nick,
+        mode,
+        global_mode
+    }).
+
 -record(irc_channel, {
         name :: string(),
         mode,
-        users :: [term()]
+        users :: dict()
     }).
 
 -record(irc_state, {
         ref     :: pid(),
+        network     :: atom(),
         nick,
         channels    :: #irc_channel{}
     }).
@@ -27,3 +34,9 @@
         usage,
         prefix = <<"">>
     }).
+
+-record(eiko_plugin, {
+        event       :: pid(),
+        commands
+    }).
+

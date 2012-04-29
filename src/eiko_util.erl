@@ -17,6 +17,13 @@ normalize(K, atom) when is_binary(K) ->
         K
     end;
 
+normalize(K, string) when is_list(K) ->
+    K;
+normalize(K, string) when is_binary(K) ->
+    binary_to_list(K);
+normalize(K, string) when is_atom(K) ->
+    atom_to_list(K);
+
 normalize(K, binary) when is_binary(K) ->
     K;
 normalize(K, binary) when is_atom(K) ->
