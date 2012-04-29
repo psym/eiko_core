@@ -6,20 +6,25 @@
 -include("irc.hrl").
 
 %%% API
--export([start_link/1]).
+-export([ start_link/1
+        , send/3
+        , nick/2
+        , join/2
+        , send/3
+    ]).
 
 %%% Callbacks
--export([
-        init/1,
-        handle_info/3, 
-        handle_event/3,
-        code_change/4,
-        terminate/3,
+-export([ init/1
+        , handle_info/3 
+        , handle_event/3
+        , code_change/4
+        , terminate/3
+        
         %%% States
-        offline/2,
-        connect/2,
-        online/2,
-        disconnect/2
+        , offline/2
+        , connect/2
+        , online/2
+        , disconnect/2
     ]).
 
 -define(RECONNECT_DELAY, 10 * 1000).        % 10 seconds
@@ -33,7 +38,34 @@
     }).
 
 
-start_link(Network) -> gen_fsm:start_link(?MODULE, Network, []).
+%%%--------------------------------------------------
+%%% API
+%%%--------------------------------------------------
+start_link(Network) -> 
+    gen_fsm:start_link(?MODULE, Network, []).
+
+nick(NetRef, Nick) ->
+    send(NetRef, "NICK", Nick).
+
+join(NetRef, Channel) ->
+    send(NetRef, "JOIN", Channel).
+
+send(_, _, []) -> ok;
+send(NetRef, Cmd, Data) ->
+    D = eiko_util:normalize(Data, binary),
+    Lim = 510 - iolist_size(Cmd) - 2,
+    Size = iolist_size(D),
+    case min(Lim, Size) of
+        Lim ->
+            ToSend = binary:part(D, 0, Lim),
+            Rest = binary:part(D, Lim, Size-Lim);
+        Size ->
+            ToSend = D,
+            Rest = []
+    end,
+    gen_fsm:send_all_state_event(NetRef, {out, [Cmd | [<<$:, ToSend/binary>>]]}),
+    send(NetRef, Cmd, Rest).
+
 
 %%% gen_fsm API callbacks
 init(Network) ->
@@ -96,7 +128,7 @@ terminate(Reason, _StateName, State) ->
 %%% Internal
 %%%--------------------------------------------------
 handle_line(Msg = #irc_message{command = <<"PING">>}, State) ->
-    eiko_lib:send(self(), <<"PONG">>, Msg#irc_message.trailing),
+    send(self(), <<"PONG">>, Msg#irc_message.trailing),
     State;
 handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
     join_channels(State);
@@ -104,7 +136,7 @@ handle_line(Msg, #state{irc = Irc} = State) when
         Msg#irc_message.command == <<"433">>;       % ERR_NICKNAMEINUSE
         Msg#irc_message.command == <<"436">> ->     % ERR_NICKCOLLISION
     NewNick = Irc#irc_state.nick ++ "`",
-    eiko_lib:nick(self(), NewNick),
+    nick(self(), NewNick),
     State#state{irc = Irc#irc_state{nick = NewNick}};
 handle_line(Msg, #state{network = Network} = State) ->
     eiko_log:debug({Network, server}, "unhandled: ~p", [Msg]),
@@ -113,8 +145,11 @@ handle_line(Msg, #state{network = Network} = State) ->
 login(Network) -> 
     Nick = eiko_cfg:nick(Network),
     User = eiko_cfg:user(Network),
-    eiko_lib:nick(self(), Nick),
-    eiko_lib:user(self(), User, User).
+    nick(self(), Nick),
+    user(self(), User, User).
+
+user(NetRef, User, RealName) ->
+    send(NetRef, ["USER ", User, " 0 * "], [RealName]).
 
 join_channels(#state{network = Network} = State) ->
     Channels = eiko_cfg:channels(local),
@@ -126,7 +161,7 @@ join_channels(#state{network = Network} = State) ->
                         eiko_log:error({Network, server}, "Channel missing name: ~p", [C]);
                     {Name, true} ->
                         eiko_log:add_channel(Network, Name),
-                        eiko_lib:join(self(), Name);
+                        join(self(), Name);
                     {_, _} -> ok
                 end
         end, Channels),

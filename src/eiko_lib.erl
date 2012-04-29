@@ -4,38 +4,8 @@
 
 %%% API
 -export([
-        parse/1,
-        send/3,
-
-        join/2,
-        nick/2, user/3
+        parse/1
     ]).
-
-nick(Conn, Nick) -> 
-    send(Conn, "NICK", Nick).
-
-user(Conn, User, RealName) ->
-    send(Conn, ["USER ", User, " 0 * "], [RealName]).
-
-join(Conn, Channel) ->
-    send(Conn, "JOIN", Channel).
-
-send(_, _, []) -> ok;
-send(Conn, Pre, Data) ->
-    D1 = iolist_to_binary(Data),
-    Lim = 510 - iolist_size(Pre) -2,
-    Size = iolist_size(D1),
-    case min(Lim, Size) of
-        Lim ->
-            ToSend = binary:part(D1, 0, Lim),
-            Rest = binary:part(D1, Lim, Size-Lim);
-        Size ->
-            ToSend = D1,
-            Rest = []
-    end,
-    %XXX: fix this
-    gen_fsm:send_all_state_event(Conn, {out, [Pre | [<<$:, ToSend/binary>>]]}),
-    send(Conn, Pre, Rest).
 
 %% message    =  [ ":" prefix SPACE ] command [ params ] crlf
 %% prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
