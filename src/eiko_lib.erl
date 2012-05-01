@@ -53,6 +53,6 @@ parse(Line) when is_binary(Line) ->
         <<":", R/binary>> -> binary:split(R, <<" ">>);
         _ -> [undefined, Line]
     end,
-    [Middle | Trailing] = binary:split(Rest, <<" :">>),
+    [Middle, Trailing] = binary:split(Rest, <<" :">>),
     [Command | Params] = binary:split(Middle, <<" ">>, [global]),
     #irc_message{prefix = Prefix, command = Command, params = Params, trailing = Trailing}.

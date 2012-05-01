@@ -20,7 +20,9 @@
 
 -include("irc.hrl").
 
-
+%%%--------------------------------------------------
+%%%  API
+%%%--------------------------------------------------
 start_link(Irc) when is_record(Irc, irc_state)->
     Network = Irc#irc_state.network,
     {ok, EventMgr} = gen_event:start_link(),
@@ -49,24 +51,29 @@ notify(EventMgr, Event) ->
     gen_event:notify(EventMgr, Event).
 
 
-command_match(_Msg, #command{match = all}) -> true;
-command_match(_Msg, #command{match = {cmd, <<>>}}) -> true;
-command_match(#irc_message{params = Params, trailing = Trailing}, 
+command_match(_Msg, #command{match = all}) -> 
+    true;
+command_match(_Msg, #command{match = {cmd, <<>>}}) -> 
+    true;
+command_match(Msg, #command{match = {func, Match}}) ->
+    Match(Msg);
+command_match(#irc_message{trailing = []}, _Cmd) ->
+    false;
+command_match(#irc_message{trailing = Trailing}, 
               #command{match = {cmd, Match}, prefix = Prefix}) ->
-    [Cmd|_] = binary:split(lists:last(Trailing), <<" ">>),
+    [Cmd|_] = binary:split(Trailing, <<" ">>),
     PrefixLen = binary:longest_common_prefix([Prefix, Cmd]),
     CmdPart = {PrefixLen, byte_size(Cmd) - PrefixLen},
     (byte_size(Prefix) == PrefixLen) andalso (Match == binary_part(Cmd, CmdPart));
-command_match(#irc_message{params = Params}, #command{match = {re, Match}}) ->
-    re:run(lists:last(Params), Match, [{capture, none}]) == match;
-command_match(Msg, #command{match = {func, Match}}) ->
-    Match(Msg).
+command_match(#irc_message{trailing = Trailing}, 
+              #command{match = {re, Match}}) ->
+    re:run(Trailing, Match, [{capture, none}]) == match.
 
 
 strip_command(#irc_message{trailing = Trailing}, #command{match = all}) -> Trailing;
 strip_command(#irc_message{trailing = Trailing}, #command{match = {cmd, Match}, prefix = Prefix}) ->
     S = byte_size(Match) + byte_size(Prefix),
-    case lists:last(Trailing) of
+    case Trailing of
         <<_:S/binary, $ , A/binary>> -> A;
         <<_:S/binary, A/binary>> -> A
     end,
