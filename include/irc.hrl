@@ -15,7 +15,7 @@
         ref         :: pid(),
         network     :: atom(),
         event       :: pid(),
-        nick,
+        nick        :: string(),
         channels
     }).
 -define(IRCNET(Irc), Irc#irc_state.network).
@@ -34,7 +34,7 @@
         function,
         args = [],
         usage,
-        prefix = <<"">>
+        prefix = undefined
     }).
 
 -record(eiko_plugin, {

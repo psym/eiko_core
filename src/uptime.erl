@@ -24,7 +24,6 @@ init({EventMgr, #irc_state{network = Network} = _Irc}) ->
             commands = [
                 #command{
                     event = <<"PRIVMSG">>, match = {cmd, <<"uptime">>},
-                    prefix = <<"!">>,
                     function = {?MODULE, uptime}, args = [],
                     usage = "vm uptime"}
             ]}

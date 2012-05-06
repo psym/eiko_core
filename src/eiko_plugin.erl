@@ -62,10 +62,15 @@ command_match(#irc_message{trailing = undefined}, _Cmd) ->
     false;
 command_match(#irc_message{trailing = Trailing}, 
               #command{match = {cmd, Match}, prefix = Prefix}) ->
-    [Cmd|_] = binary:split(Trailing, <<" ">>),
-    PrefixLen = binary:longest_common_prefix([Prefix, Cmd]),
-    CmdPart = {PrefixLen, byte_size(Cmd) - PrefixLen},
-    (byte_size(Prefix) == PrefixLen) andalso (Match == binary_part(Cmd, CmdPart));
+    PrefixLen = binary:longest_common_prefix([Prefix, Trailing]),
+    case binary:match(Trailing, Prefix) of
+        nomatch -> 
+            false;
+        {_Start, _End} ->
+            [_, NoPrefix] = binary:split(Trailing, Prefix),
+            [Cmd|_] = binary:split(NoPrefix, <<" ">>),
+            (byte_size(Prefix) == PrefixLen) andalso (Match == Cmd)
+    end;
 command_match(#irc_message{trailing = Trailing}, 
               #command{match = {re, Match}}) ->
     re:run(Trailing, Match, [{capture, none}]) == match.
@@ -80,23 +85,39 @@ strip_command(#irc_message{trailing = Trailing}, #command{match = {cmd, Match}, 
     end,
     tokens(A, <<$ >>).
 
+-spec set_prefix(#irc_state{}, #eiko_plugin{}, #command{}) -> #command{}.
+set_prefix(Irc, Plugin, Command) ->
+    GlobalPrefix = case eiko_cfg:plugin_prefix(Plugin#eiko_plugin.name) of
+        direct ->
+            eiko_util:normalize(Irc#irc_state.nick ++ ": ", binary);
+        Prefix ->
+            Prefix
+    end,
+    if  Command#command.prefix == undefined ->
+            Command#command{prefix = GlobalPrefix};
+        true ->
+            Command
+    end.
 
 %%% Generic event handler
 -spec handle({#irc_state{}, #irc_message{}}, #eiko_plugin{}) -> [nop | ok | pid()].
 handle({Irc, Msg}, Plugin) when is_record(Plugin, eiko_plugin) ->
     Access = try_access(Msg, Plugin),
-    [case try_command(Msg, C) of
-        {ok, Args} when Access == true ->
-            spawn(fun() -> runner(C, {Irc, Msg}, Args) end);
-        {ok, _Args} when Access == false ->
-            eiko_log:info({?IRCNET(Irc), server}, "Denying '~p' access to ~p.", 
-                [Msg#irc_message.prefix, Plugin#eiko_plugin.name]);
-        {error, bad_usage} ->
-            usage({Irc, Msg}, C),
-            nop;
-        {error, bad_match} ->
-            nop
-     end || C <- Plugin#eiko_plugin.commands].
+    [begin
+        C = set_prefix(Irc, Plugin, Command),
+        case try_command(Msg, C) of
+            {ok, Args} when Access == true ->
+                spawn(fun() -> runner(C, {Irc, Msg}, Args) end);
+            {ok, _Args} when Access == false ->
+                eiko_log:info({?IRCNET(Irc), server}, "Denying '~p' access to ~p.", 
+                    [Msg#irc_message.prefix, Plugin#eiko_plugin.name]);
+            {error, bad_usage} ->
+                usage({Irc, Msg}, C),
+                nop;
+            {error, bad_match} ->
+                nop
+        end
+     end || Command <- Plugin#eiko_plugin.commands].
 
 -spec try_access(#irc_message{}, #eiko_plugin{}) -> true | false.
 try_access(Msg, Plugin) ->
@@ -111,8 +132,9 @@ try_access(Msg, Plugin) ->
 -spec try_command(#irc_message{}, #command{}) -> {ok, term()} | 
                                                  {error, bad_usage} | 
                                                  {error, bad_match}.
-try_command(Msg, Command) when Msg#irc_message.command == Command#command.event ->
-    case command_match(Msg, Command) of
+try_command(#irc_message{command = MsgCmd} = Msg, Command) ->
+    Event = eiko_util:normalize(Command#command.event, binary),
+    case command_match(Msg, Command) andalso Event == MsgCmd of
         true ->
             try_args(Msg, Command);
         false -> 

@@ -21,6 +21,7 @@
         , plugins/1
         , plugin_options/1
         , plugin_access/1
+        , plugin_prefix/1
         , prefix/1
     ]).
 
@@ -101,6 +102,15 @@ plugin_access(Plugin) ->
         A  -> A
     end.
 
+plugin_prefix(Plugin) ->
+    case kvc:path(prefix, plugin_options(Plugin)) of
+        [] ->
+            case get(prefix) of
+                [] -> direct;
+                DP -> DP
+            end;
+        P  -> P
+    end.
 
 prefix(Network) ->
     first_of([[networks, Network, prefix], prefix]).

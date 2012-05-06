@@ -28,15 +28,15 @@ init({EventMgr, #irc_state{network = Network} = _Irc}) ->
             event = EventMgr,
             commands = [
                 #command{
-                    event = <<"PRIVMSG">>, match = {cmd, <<"!load">>},
+                    event = <<"PRIVMSG">>, match = {cmd, <<"load">>},
                     function = {?MODULE, load}, args = [something],
                     usage = "<plugin> -- load or reload plugin"},
                 #command{
-                    event = <<"PRIVMSG">>, match = {cmd, <<"!unload">>},
+                    event = <<"PRIVMSG">>, match = {cmd, <<"unload">>},
                     function = {?MODULE, unload}, args = [something],
                     usage = "<plugin> -- unload plugin"},
                 #command{
-                    event = <<"PRIVMSG">>, match = {cmd, <<"!loaded">>},
+                    event = <<"PRIVMSG">>, match = {cmd, <<"loaded">>},
                     function = {?MODULE, loaded}, args = [],
                     usage = "list loaded plugins"}
             ]}
@@ -93,7 +93,7 @@ load({Irc, Msg}, Plugin) ->
     P = eiko_util:normalize(Plugin, atom),
 
     io:format("loaded: ~p~n", [Loaded]),
-    io:format("loading: ~p~n", [Plugin]),
+    io:format("loading: ~p (~p)~n", [Plugin, P]),
     io:format("~p located at ~p~n", [P, code:which(P)]),
 
     case code:which(P) of
@@ -118,7 +118,7 @@ reload({Irc, Msg}, Plugin, EventMgr) ->
     end,
     Status = case eiko_plugin:swap_handler(EventMgr, {Plugin, []}, {Plugin, Irc}) of
         {error, R} -> 
-            eiko_log:error([{?IRCNET(Irc), server}], "Reloading ~p failed: ~p", [Plugin, R]),
+            eiko_log:error({?IRCNET(Irc), server}, "Reloading ~p failed: ~p", [Plugin, R]),
             error;
         ok -> ok
     end,
