@@ -27,25 +27,26 @@ start_link(Irc) when is_record(Irc, irc_state)->
     Network = Irc#irc_state.network,
     {ok, EventMgr} = gen_event:start_link(),
     lager:info("Starting event manager for '~s': ~p", [Network, EventMgr]),
-    [add_handler(EventMgr, Plugin, [Irc]) || Plugin <- eiko_cfg:plugins(Network)],
+    [add_handler(EventMgr, Plugin, Irc#irc_state{event = EventMgr}) 
+        || Plugin <- eiko_cfg:plugins(Network)],
     {ok, EventMgr}.
 
-add_handler(EventMgr, Handler, _Args) ->
-    case gen_event:add_handler(EventMgr, Handler, [EventMgr]) of
+add_handler(EventMgr, Handler, Irc) ->
+    case gen_event:add_handler(EventMgr, Handler, {EventMgr, Irc}) of
         ok -> 
-            lager:info("Loading '~p' on ~p ... ok", [Handler, EventMgr]);
+            lager:info("Loading '~p' on ~p ... ok", [Handler, {EventMgr, Irc}]);
         {E, Reason} when E == 'EXIT'; E == error ->
-            lager:error("Loading '~p' on ~p ... failed (~p)", [Handler, EventMgr, Reason])
+            lager:error("Loading '~p' on ~p ... failed (~p)", [Handler, {EventMgr, Irc}, Reason])
     end.
 
 delete_handler(EventMgr, Handler, Args) ->
-    gen_event:delete_handler(EventMgr, Handler, Args).
+    gen_event:delete_handler(EventMgr, Handler, {EventMgr, Args}).
 
 which_handlers(EventMgr) ->
     gen_event:which_handlers(EventMgr).
 
-swap_handler(EventMgr, {OldHandler, TermArgs}, {NewHandler, _Args}) ->
-    gen_event:swap_handler(EventMgr, {OldHandler, TermArgs}, {NewHandler, [EventMgr]}).
+swap_handler(EventMgr, {OldHandler, TermArgs}, {NewHandler, Args}) ->
+    gen_event:swap_handler(EventMgr, {OldHandler, TermArgs}, {NewHandler, {EventMgr, Args}}).
 
 notify(EventMgr, Event) ->
     gen_event:notify(EventMgr, Event).
@@ -57,7 +58,7 @@ command_match(_Msg, #command{match = {cmd, <<>>}}) ->
     true;
 command_match(Msg, #command{match = {func, Match}}) ->
     Match(Msg);
-command_match(#irc_message{trailing = []}, _Cmd) ->
+command_match(#irc_message{trailing = undefined}, _Cmd) ->
     false;
 command_match(#irc_message{trailing = Trailing}, 
               #command{match = {cmd, Match}, prefix = Prefix}) ->
@@ -81,22 +82,49 @@ strip_command(#irc_message{trailing = Trailing}, #command{match = {cmd, Match}, 
 
 
 %%% Generic event handler
-handle({Irc, Msg}, Commands) ->
-    lager:debug("got ~p~n", [Msg#irc_message.params]),
-    [try_command({Irc, Msg}, C) || C <- Commands].
+-spec handle({#irc_state{}, #irc_message{}}, #eiko_plugin{}) -> [nop | ok | pid()].
+handle({Irc, Msg}, Plugin) when is_record(Plugin, eiko_plugin) ->
+    Access = try_access(Msg, Plugin),
+    [case try_command(Msg, C) of
+        {ok, Args} when Access == true ->
+            spawn(fun() -> runner(C, {Irc, Msg}, Args) end);
+        {ok, _Args} when Access == false ->
+            eiko_log:info({?IRCNET(Irc), server}, "Denying '~p' access to ~p.", 
+                [Msg#irc_message.prefix, Plugin#eiko_plugin.name]);
+        {error, bad_usage} ->
+            usage({Irc, Msg}, C),
+            nop;
+        {error, bad_match} ->
+            nop
+     end || C <- Plugin#eiko_plugin.commands].
 
-try_command({Irc, Msg}, Command) when Msg#irc_message.command == Command#command.event ->
+-spec try_access(#irc_message{}, #eiko_plugin{}) -> true | false.
+try_access(Msg, Plugin) ->
+    try
+        % inside try incase Msg doesnt have a prefix
+        Access = eiko_cfg:plugin_access(Plugin#eiko_plugin.name),
+        eiko_access:has_access(Msg, Access)
+    catch _:_ ->
+        false
+    end.
+
+-spec try_command(#irc_message{}, #command{}) -> {ok, term()} | 
+                                                 {error, bad_usage} | 
+                                                 {error, bad_match}.
+try_command(Msg, Command) when Msg#irc_message.command == Command#command.event ->
     case command_match(Msg, Command) of
         true ->
-            try parse_args(Msg, Command) of
-                Args -> spawn(fun() -> (?MODULE):runner(Command, {Irc, Msg}, Args) end)
-            catch _:_ ->
-                usage({Irc, Msg}, Command)
-            end;
-        false -> nop
+            try_args(Msg, Command);
+        false -> 
+            {error, bad_match}
     end;
-try_command(_, _) -> nop.
+try_command(_, _) -> {error, bad_match}.
 
+-spec try_args(#irc_message{}, #command{}) -> {ok, term()} | {error, bad_usage}.
+try_args(Msg, Command) ->
+    try parse_args(Msg, Command)
+    catch _:_ -> {error, bad_usage}
+    end.    
 
 runner(#command{function={Mod, Fun}}, {Irc, Msg}, Args) ->
     lager:info("launching ~p:~p(~p)...", [Mod, Fun, [Msg|Args]]),
@@ -147,7 +175,7 @@ parse_args(#irc_message{} = Msg, #command{args = Opt} = Cmd) ->
 parse_args(M, Opt) ->
     A = parse_args({M, Opt, []}),
     io:format("A: ~p~n", [A]),
-    lists:reverse(A).
+    {ok, lists:reverse(A)}.
 
 parse_args({[<<>>|R], S, Acc}) -> parse_args({R, S, Acc}); %strip spurious whitspace
 parse_args({[], {optional, _S}, Acc}) -> {[], [], [[]|Acc]};

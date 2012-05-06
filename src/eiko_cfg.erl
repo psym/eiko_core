@@ -2,32 +2,34 @@
 -behaviour(gen_server).
 
 %%% API
--export([
-        start_link/0,
-        get/0,
-        get/1,
-        first_of/1,
-        set/2,
-        reload/0,
-        stop/0,
+-export([ start_link/0
+        , get/0
+        , get/1
+        , first_of/1
+        , set/2
+        , reload/0
+        , stop/0
 
-        networks/0,
-        network/1,
-        network/2,
-        nick/1,
-        user/1,
-        servers/1,
-        channels/1,
-        plugins/1
+        , networks/0
+        , network/1
+        , network/2
+        , nick/1
+        , user/1
+        , owners/0
+        , servers/1
+        , channels/1
+        , plugins/1
+        , plugin_options/1
+        , plugin_access/1
+        , prefix/1
     ]).
 
--export([
-        init/1,
-        handle_call/3,
-        handle_cast/2,
-        handle_info/2,
-        terminate/2,
-        code_change/3
+-export([ init/1
+        , handle_call/3
+        , handle_cast/2
+        , handle_info/2
+        , terminate/2
+        , code_change/3
     ]).
 
 -record(state, {
@@ -71,7 +73,13 @@ nick(Network) ->
     first_of([[networks, Network, nick], nick]).
 
 user(Network) ->
-    first_of([[networks, Network, user], user]).
+    case first_of([[networks, Network, user], user]) of
+        [] -> nick(Network);
+        U  -> U
+    end.
+
+owners() ->
+    [eiko_util:normalize(X, binary) || X <- get(owners)].
 
 servers(Network) ->
     get([networks, Network, servers]).
@@ -80,7 +88,22 @@ channels(Network) ->
     get([networks, Network, channels]).
 
 plugins(Network) ->
-    lists:usort( get(plugins) ++ get([networks, Network, plugins]) ).
+    get([networks, Network, plugins]).
+
+plugin_options(Plugin) ->
+    get([plugins, Plugin]).
+
+%% default command access is owner only
+plugin_access(Plugin) ->
+    % kvc:value ingores default value if store is empty
+    case kvc:path(access, plugin_options(Plugin)) of
+        [] -> owner;
+        A  -> A
+    end.
+
+
+prefix(Network) ->
+    first_of([[networks, Network, prefix], prefix]).
 
 first_of([]) -> [];
 first_of([H|T]) ->

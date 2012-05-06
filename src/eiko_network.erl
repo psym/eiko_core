@@ -16,6 +16,7 @@
 -export([ init/1
         , handle_info/3 
         , handle_event/3
+        , handle_sync_event/4
         , code_change/4
         , terminate/3
         
@@ -33,8 +34,7 @@
 -record(state, {
         network     :: atom(),
         socket,
-        irc         :: #irc_state{},
-        event       :: pid()
+        irc         :: #irc_state{}
     }).
 
 
@@ -81,8 +81,7 @@ init(Network) ->
     {ok, EventMgr} = eiko_plugin:start_link(Irc),
     State = #state{
         network = Network, 
-        irc     = Irc,
-        event   = EventMgr
+        irc     = Irc#irc_state{event = EventMgr}
     },
     case eiko_cfg:network(Network, autoconnect) of
         true -> {ok, connect, State, 0};
@@ -104,7 +103,8 @@ connect(timeout, #state{network=Network, irc=Irc} = State) ->
 disconnect(_, State) ->
     {stop, unimplemented, State}.
 
-online({in, Line}, #state{irc = Irc, event = Event} = State) ->
+online({in, Line}, #state{irc = Irc} = State) ->
+    Event = Irc#irc_state.event,
     Msg = eiko_lib:parse(Line),
     eiko_log:log_msg(State#state.network, in, Msg),
     eiko_plugin:notify(Event, {in, Irc, Msg}),
@@ -121,6 +121,9 @@ handle_event({out, [H|T]}, StateName, #state{socket=Socket, network=Network} = S
     eiko_log:log_msg(Network, out, L),
     ok = gen_tcp:send(Socket, [L, ?CRLF]),
     {next_state, StateName, State}.
+
+handle_sync_event(_Event, _From, StateName, State) ->
+    {reply, noreply, StateName, State}.
 
 code_change(_OldVsn, StateName, State, _Extra) -> {ok, StateName, State}.
 

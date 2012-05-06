@@ -29,5 +29,7 @@ normalize(K, binary) when is_binary(K) ->
 normalize(K, binary) when is_atom(K) ->
     atom_to_binary(K, utf8);
 normalize(K, binary) when is_list(K) ->
-    iolist_to_binary(K).
+    iolist_to_binary(K);
+normalize(K, binary) when is_pid(K) ->
+    normalize(io_lib:format("~p", [K]), binary).
 

@@ -4,6 +4,7 @@
 
 %%% API
 -export([ reply/3
+        , notice/4
         , parse/1
         , get_origin/1
         , get_sender/2
@@ -11,6 +12,11 @@
 
 reply(Irc, Msg, Response) ->
     eiko_network:send(Irc, ["PRIVMSG", " ", get_origin(Msg)], Response).
+
+notice(Irc, Msg, Response, private) ->
+    eiko_network:send(Irc, ["NOTICE", " ", get_sender(Msg, [nick])], Response);
+notice(Irc, Msg, Response, public) ->
+    eiko_network:send(Irc, ["NOTICE", " ", get_origin(Msg)], Response).
 
 -spec get_origin(#irc_message{}) -> binary().
 get_origin(#irc_message{params=[<<"#", Channel/binary>>|_]} = _Msg) ->

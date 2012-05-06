@@ -76,10 +76,10 @@ error({Network, Channel}, Msg, Args) ->
     lager:error([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
 alert({Network, Channel}, Msg, Args) ->
-    lager:critical([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
+    lager:alert([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
 critical({Network, Channel}, Msg, Args) ->
-    lager:alert([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
+    lager:critical([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
 emergency({Network, Channel}, Msg, Args) ->
     lager:emergency([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).

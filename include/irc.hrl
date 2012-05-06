@@ -12,11 +12,13 @@
     }).
 
 -record(irc_state, {
-        ref     :: pid(),
+        ref         :: pid(),
         network     :: atom(),
+        event       :: pid(),
         nick,
-        channels    :: #irc_channel{}
+        channels
     }).
+-define(IRCNET(Irc), Irc#irc_state.network).
 
 
 -record(irc_message, {
@@ -30,12 +32,13 @@
         event,
         match,
         function,
-        args,
+        args = [],
         usage,
         prefix = <<"">>
     }).
 
 -record(eiko_plugin, {
+        name        :: atom(),
         event       :: pid(),
         commands
     }).

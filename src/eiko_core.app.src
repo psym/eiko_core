@@ -11,6 +11,7 @@
                 eiko_lib,
                 eiko_util,
                 eiko_plugin,
+                eiko_access,
                 erlopt,
 
                 uptime,

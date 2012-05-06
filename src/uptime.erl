@@ -14,8 +14,13 @@
 
 -include("irc.hrl").
 
-init(_Args) ->
+init({{_EventMgr, _Irc} = Args, _Term}) ->
+    %% init as result of swap_handler
+    init(Args);
+init({EventMgr, #irc_state{network = Network} = _Irc}) ->
     {ok, #eiko_plugin{
+            name = uptime,
+            event = EventMgr,
             commands = [
                 #command{
                     event = <<"PRIVMSG">>, match = {cmd, <<"uptime">>},
@@ -26,15 +31,18 @@ init(_Args) ->
     }.
 
 handle_event({in, Irc, Msg}, State) ->
-    eiko_plugin:handle({Irc, Msg}, State#eiko_plugin.commands),
+    eiko_plugin:handle({Irc, Msg}, State),
+    {ok, State};
+handle_event(_, State) ->
     {ok, State}.
 
-handle_call(_Request, State) -> {ok, State}.
+handle_call(_Request, State) -> {ok, noreply, State}.
 handle_info(_Info, State) -> {ok, State}.
 terminate(_Args, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 uptime({Irc, Msg}) ->
+    eiko_log:info({?IRCNET(Irc), self()}, "Called by ~p", [eiko_lib:get_origin(Msg)]),
     {Total, _} = statistics(wall_clock),
     {D, {H, M, _S}} = calendar:seconds_to_daystime(Total div 1000),
     Uptime = lists:flatten(io_lib:format("~p d, ~p:~p", [D, H, M])),
