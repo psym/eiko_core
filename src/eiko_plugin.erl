@@ -93,21 +93,22 @@ set_prefix(Irc, Plugin, Command) ->
         Prefix ->
             Prefix
     end,
-    if  Command#command.prefix == undefined ->
+    C = if  Command#command.prefix == undefined ->
             Command#command{prefix = GlobalPrefix};
         true ->
             Command
-    end.
+    end,
+    C#command{prefix = eiko_util:normalize(C#command.prefix, binary)}.
 
 %%% Generic event handler
--spec handle({#irc_state{}, #irc_message{}}, #eiko_plugin{}) -> [nop | ok | pid()].
-handle({Irc, Msg}, Plugin) when is_record(Plugin, eiko_plugin) ->
-    Access = try_access(Msg, Plugin),
+-spec handle({#irc_state{}, #irc_message{}, any()}, #eiko_plugin{}) -> [nop | ok | pid()].
+handle({Irc, Msg, State}, Plugin) when is_record(Plugin, eiko_plugin) ->
     [begin
         C = set_prefix(Irc, Plugin, Command),
+        Access = try_access(Msg, Plugin, C),
         case try_command(Msg, C) of
             {ok, Args} when Access == true ->
-                spawn(fun() -> runner(C, {Irc, Msg}, Args) end);
+                spawn(fun() -> runner(C, {Irc, Msg, State}, Args) end);
             {ok, _Args} when Access == false ->
                 eiko_log:info({?IRCNET(Irc), server}, "Denying '~p' access to ~p.", 
                     [Msg#irc_message.prefix, Plugin#eiko_plugin.name]);
@@ -119,12 +120,17 @@ handle({Irc, Msg}, Plugin) when is_record(Plugin, eiko_plugin) ->
         end
      end || Command <- Plugin#eiko_plugin.commands].
 
--spec try_access(#irc_message{}, #eiko_plugin{}) -> true | false.
-try_access(Msg, Plugin) ->
+-spec try_access(#irc_message{}, #eiko_plugin{}, #command{}) -> true | false.
+try_access(Msg, Plugin, Command) ->
+    % inside try incase Msg doesnt have a prefix
     try
-        % inside try incase Msg doesnt have a prefix
-        Access = eiko_cfg:plugin_access(Plugin#eiko_plugin.name),
-        eiko_access:has_access(Msg, Access)
+        case Command of
+            {cmd, _} ->
+                Access = eiko_cfg:plugin_access(Plugin#eiko_plugin.name),
+                eiko_access:has_access(Msg, Access);
+            _ ->
+                true
+        end 
     catch _:_ ->
         false
     end.
@@ -148,9 +154,9 @@ try_args(Msg, Command) ->
     catch _:_ -> {error, bad_usage}
     end.    
 
-runner(#command{function={Mod, Fun}}, {Irc, Msg}, Args) ->
+runner(#command{function={Mod, Fun}}, {Irc, Msg, State}, Args) ->
     lager:info("launching ~p:~p(~p)...", [Mod, Fun, [Msg|Args]]),
-    try apply(Mod, Fun, [{Irc, Msg}|Args]) of
+    try apply(Mod, Fun, [{Irc, Msg, State}|Args]) of
         {reply, Out} -> eiko_lib:reply(Irc, Msg, Out);
         {error, Reason} -> eiko_lib:reply(Irc, Msg, Reason);
         _ -> ok
@@ -194,6 +200,8 @@ parse_args(#irc_message{} = Msg, #command{args = Opt} = Cmd) ->
     ArgList = strip_command(Msg, Cmd),
     io:format("PreA: ~p~n", [ArgList]),
     parse_args(ArgList, Opt);
+parse_args(M, ignore) ->
+    {ok, []};
 parse_args(M, Opt) ->
     A = parse_args({M, Opt, []}),
     io:format("A: ~p~n", [A]),

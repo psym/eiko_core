@@ -40,12 +40,10 @@ init({EventMgr, #irc_state{network = Network} = _Irc}) ->
                     function = {?MODULE, loaded}, args = [],
                     usage = "list loaded plugins"}
             ]}
-    };
-%%% swap_handler
-init({Args, _Term}) -> init(Args).
+    }.
 
 handle_event({in, Irc, Msg}, State) ->
-    eiko_plugin:handle({Irc, Msg}, State),
+    eiko_plugin:handle({Irc, Msg, State}, State),
     {ok, State};
 handle_event(_, State) ->
     {ok, State}.
@@ -56,7 +54,7 @@ terminate(_Args, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 
-unload({Irc, Msg}, Plugin) ->
+unload({Irc, Msg, _State}, Plugin) ->
     EventMgr = Irc#irc_state.event,
     Loaded = eiko_plugin:which_handlers(EventMgr),
     P = eiko_util:normalize(Plugin, atom),
@@ -75,13 +73,13 @@ unload({Irc, Msg}, Plugin) ->
     end,
     ok.
 
-loaded({Irc, Msg}) ->
+loaded({Irc, Msg, _State}) ->
     EventMgr = Irc#irc_state.event,
     Loaded = eiko_plugin:which_handlers(EventMgr),
     L = [eiko_util:normalize(P, string) || P <- Loaded],
     eiko_lib:reply(Irc, Msg, io_lib:format("Loaded plugins: ~ts", [string:join(L, ", ")])).
 
-load({Irc, Msg}, Plugin) ->
+load({Irc, Msg, _State}, Plugin) ->
     EventMgr = Irc#irc_state.event,
     case eiko_access:is_owner(Msg) of
         false ->

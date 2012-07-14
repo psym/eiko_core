@@ -68,6 +68,14 @@ send(#irc_state{ref= Ref}, Cmd, Trailing) ->
 
 
 %%%--------------------------------------------------
+%%% States
+%%%     init
+%%%     /   \
+%%% offline  connect
+%%%   ^       /     \
+%%% disconnect <- online
+%%%   
+%%%--------------------------------------------------
 %%% gen_fsm API callbacks
 %%%--------------------------------------------------
 init(Network) ->
@@ -90,6 +98,7 @@ init(Network) ->
 
 connect(timeout, #state{network=Network, irc=Irc} = State) ->
     {Host, Port} = hd(eiko_cfg:servers(Network)),
+    lager:info("Connecting to network '~s' (~p:~p)", [Network, Host, Port]),
     Options = [binary, {active, true}, {packet, line}, {keepalive, true}],
     case gen_tcp:connect(Host, Port, Options) of
         {ok, Socket} ->
@@ -139,8 +148,8 @@ terminate(Reason, _StateName, State) ->
 handle_line(Msg = #irc_message{command = <<"PING">>}, #state{irc = Irc} = State) ->
     send(Irc, <<"PONG">>, Msg#irc_message.trailing),
     State;
-handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
-    join_channels(State);
+%handle_line(#irc_message{command = <<"001">>}, State) -> % RPL_WELCOME
+%    join_channels(State);
 handle_line(Msg, #state{irc = Irc} = State) when
         Msg#irc_message.command == <<"433">>;       % ERR_NICKNAMEINUSE
         Msg#irc_message.command == <<"436">> ->     % ERR_NICKCOLLISION
