@@ -11,8 +11,10 @@
         [ list/0
         , add_network/1
         , add_channel/2
+        , add_plugin/2
         , remove_network/1
         , remove_channel/2
+        , remove_plugin/2
 
         , add_trace/2
         , remove_trace/1
@@ -60,27 +62,43 @@ log_msg(Network, Direction, Line) ->
     log_msg(Network, Direction, eiko_lib:parse(Line)).
 
 
+debug({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:debug([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 debug({Network, Channel}, Msg, Args) ->
     lager:debug([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+info({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:info([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 info({Network, Channel}, Msg, Args) ->
     lager:info([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+notice({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:notice([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 notice({Network, Channel}, Msg, Args) ->
     lager:notice([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+warning({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:warning([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 warning({Network, Channel}, Msg, Args) ->
     lager:warning([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+error({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:error([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 error({Network, Channel}, Msg, Args) ->
     lager:error([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+alert({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:alert([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 alert({Network, Channel}, Msg, Args) ->
     lager:alert([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+critical({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:critical([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 critical({Network, Channel}, Msg, Args) ->
     lager:critical([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
+emergency({Network, Plugin}, Msg, Args) when is_pid(Plugin) ->
+    lager:emergency([{network, bin(Network)}, {plugin, bin(Plugin)}], Msg, Args);
 emergency({Network, Channel}, Msg, Args) ->
     lager:emergency([{network, bin(Network)}, {channel, bin(Channel)}], Msg, Args).
 
@@ -101,6 +119,12 @@ add_channel(Network, Channel) ->
 remove_channel(Network, Channel) ->
     remove_trace([{network, bin(Network)}, {channel, bin(Channel)}]).
 
+add_plugin(Network, Plugin) ->
+    File = io_lib:format("log/~s/plugins/~s.log", [Network, Plugin]),
+    add_trace(File, [{network, bin(Network)}, {plugin, bin(Plugin)}]).
+
+remove_plugin(Network, Plugin) ->
+    remove_trace([{network, bin(Network)}, {plugin, bin(Plugin)}]).
 
 add_trace(File, Filter) ->
     gen_server:call(?MODULE, {add_trace, File, Filter}).
